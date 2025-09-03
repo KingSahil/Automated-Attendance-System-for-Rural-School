@@ -1,0 +1,47 @@
+{
+    "name": "rural-attendance-scanner",
+    "displayName": "Rural Attendance Scanner",
+    "version": "1.0.0",
+    "description": "QR-code based attendance scanner for rural schools",
+    "main": "index.js",
+    "scripts": {
+        "build": "cordova build android",
+        "build-release": "cordova build android --release",
+        "run": "cordova run android",
+        "prepare": "cordova prepare android",
+        "clean": "cordova clean android",
+        "emulate": "cordova emulate android"
+    },
+    "keywords": [
+        "attendance",
+        "qr-code",
+        "rural",
+        "education",
+        "offline",
+        "scanner"
+    ],
+    "author": "Rural Education Team",
+    "license": "MIT",
+    "dependencies": {},
+    "devDependencies": {
+        "cordova": "^12.0.0",
+        "cordova-android": "^12.0.0"
+    },
+    "cordova": {
+        "platforms": [
+            "android"
+        ],
+        "plugins": {
+            "cordova-plugin-camera": {},
+            "cordova-plugin-file": {},
+            "cordova-plugin-file-transfer": {},
+            "cordova-plugin-qrscanner": {},
+            "cordova-plugin-device": {},
+            "cordova-plugin-statusbar": {},
+            "cordova-plugin-splashscreen": {},
+            "cordova-plugin-whitelist": {},
+            "cordova-plugin-network-information": {},
+            "cordova-plugin-vibration": {}
+        }
+    }
+}
