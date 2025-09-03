@@ -43,6 +43,7 @@ class AttendanceScanner {
         // Settings
         document.getElementById('teacher-name').addEventListener('input', () => this.saveSettings());
         document.getElementById('class-subject').addEventListener('input', () => this.saveSettings());
+        document.getElementById('school-name').addEventListener('input', () => this.saveSettings());
         
         // Analytics
         document.getElementById('view-attendance').addEventListener('click', () => this.viewDateAttendance());
@@ -211,9 +212,9 @@ class AttendanceScanner {
     }
 
     updateScanCount() {
-        const selectedDateStr = this.selectedDate;
+        const today = new Date().toDateString();
         const dayCount = this.attendanceData.filter(entry => 
-            new Date(entry.timestamp).toDateString() === new Date(selectedDateStr).toDateString()
+            new Date(entry.timestamp).toDateString() === today
         ).length;
         
         // Update students count for today
@@ -226,7 +227,7 @@ class AttendanceScanner {
         const lastScanElement = document.getElementById('last-scan');
         if (lastScanElement && dayCount > 0) {
             const lastScan = this.attendanceData
-                .filter(entry => new Date(entry.timestamp).toDateString() === new Date(selectedDateStr).toDateString())
+                .filter(entry => new Date(entry.timestamp).toDateString() === today)
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
             if (lastScan) {
                 lastScanElement.textContent = new Date(lastScan.timestamp).toLocaleTimeString();
@@ -510,24 +511,24 @@ class AttendanceScanner {
 
     updateAttendanceList() {
         const attendanceList = document.getElementById('attendance-list');
-        const selectedDateStr = this.selectedDate;
+        const today = new Date().toDateString();
         
-        // Filter attendance for selected date
-        const selectedDateAttendance = this.attendanceData.filter(entry => 
-            new Date(entry.timestamp).toDateString() === new Date(selectedDateStr).toDateString()
+        // Filter attendance for current date
+        const todayAttendance = this.attendanceData.filter(entry => 
+            new Date(entry.timestamp).toDateString() === today
         ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-        if (selectedDateAttendance.length === 0) {
+        if (todayAttendance.length === 0) {
             attendanceList.innerHTML = `
                 <div class="empty-state">
-                    <p>No students scanned for ${new Date(selectedDateStr).toLocaleDateString()}</p>
+                    <p>No students scanned for ${new Date(today).toLocaleDateString()}</p>
                     <p>Start scanning to add students</p>
                 </div>
             `;
             return;
         }
 
-        attendanceList.innerHTML = selectedDateAttendance.map(entry => `
+        attendanceList.innerHTML = todayAttendance.map(entry => `
             <div class="attendance-item">
                 <div class="student-info">
                     <div class="student-name">${entry.studentName}</div>
@@ -1168,41 +1169,6 @@ class AttendanceScanner {
         
         this.showToast('Print sheet generated', 'success');
     }
-}
-
-// Global QR Generator Functions
-function switchQRTab(tabName) {
-    // Hide all QR tabs
-    document.querySelectorAll('.qr-tab-content').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    document.querySelectorAll('.qr-tab-button').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // Show selected tab
-    document.getElementById(tabName + '-qr-tab').classList.add('active');
-    event.target.classList.add('active');
-}
-
-function generateSingleQR() {
-    window.attendanceScanner.generateSingleQR();
-}
-
-function generateBatchQR() {
-    window.attendanceScanner.generateBatchQR();
-}
-
-function downloadAllQR() {
-    window.attendanceScanner.downloadAllQR();
-}
-
-function clearBatch() {
-    window.attendanceScanner.clearBatch();
-}
-
-function generatePrintableSheet() {
-    window.attendanceScanner.generatePrintableSheet();
 }
 
 // Initialize the app when DOM is loaded

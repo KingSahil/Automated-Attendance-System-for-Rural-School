@@ -23,6 +23,7 @@
         <nav class="nav-tabs">
             <button class="nav-tab active" data-tab="scanner">📷 Scanner</button>
             <button class="nav-tab" data-tab="analytics">📊 Analytics</button>
+            <button class="nav-tab" data-tab="qr-generator">🔗 QR Generator</button>
             <button class="nav-tab" data-tab="feedback">📧 Feedback</button>
             <button class="nav-tab" data-tab="settings">⚙️ Settings</button>
         </nav>
@@ -48,12 +49,6 @@
                     <span class="status-label">Last Scan</span>
                     <span class="status-value" id="last-scan">-</span>
                 </div>
-            </div>
-
-            <!-- Date Picker -->
-            <div class="date-section">
-                <label for="selected-date">📅 Attendance Date:</label>
-                <input type="date" id="selected-date" class="date-picker">
             </div>
 
             <!-- Scanner Section -->
@@ -99,45 +94,121 @@
                 <p>View attendance patterns and statistics</p>
             </header>
 
-            <!-- Date Range Selector -->
+            <!-- Date Selector -->
             <div class="analytics-controls">
                 <div class="date-range">
-                    <label>From:</label>
-                    <input type="date" id="analytics-from-date" class="date-picker">
-                    <label>To:</label>
-                    <input type="date" id="analytics-to-date" class="date-picker">
-                    <button id="generate-analytics" class="btn btn-primary">🔍 Generate Report</button>
+                    <label for="analytics-selected-date">📅 Select Date:</label>
+                    <input type="date" id="analytics-selected-date" class="date-picker">
+                    <button id="view-attendance" class="btn btn-primary">👀 View Attendance</button>
                 </div>
             </div>
 
             <!-- Analytics Summary -->
             <div class="analytics-summary">
                 <div class="summary-card">
-                    <h3>👥 Total Students</h3>
-                    <span id="total-unique-students" class="summary-value">0</span>
+                    <h3>📅 Selected Date</h3>
+                    <span id="selected-date-display" class="summary-value">-</span>
                 </div>
                 <div class="summary-card">
-                    <h3>📅 Total Days</h3>
-                    <span id="total-days" class="summary-value">0</span>
+                    <h3>👥 Students Present</h3>
+                    <span id="students-present-count" class="summary-value">0</span>
                 </div>
                 <div class="summary-card">
-                    <h3>📊 Average Attendance</h3>
-                    <span id="average-attendance" class="summary-value">0%</span>
+                    <h3>⏰ First Scan</h3>
+                    <span id="first-scan-time" class="summary-value">-</span>
                 </div>
                 <div class="summary-card">
-                    <h3>⭐ Best Day</h3>
-                    <span id="best-attendance-day" class="summary-value">-</span>
+                    <h3>⏰ Last Scan</h3>
+                    <span id="last-scan-time" class="summary-value">-</span>
                 </div>
             </div>
 
-            <!-- Individual Student Analytics -->
+            <!-- Student Attendance List -->
             <div class="student-analytics">
-                <h3>📈 Individual Student Performance</h3>
-                <div id="student-analytics-list" class="analytics-list">
+                <h3>📋 Students Attendance</h3>
+                <div id="analytics-attendance-list" class="analytics-list">
                     <div class="empty-state">
-                        <p>Select date range and click "Generate Report" to view analytics</p>
+                        <p>Select a date and click "View Attendance" to see student list</p>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- QR Generator Tab Content -->
+        <div id="qr-generator-tab" class="tab-content">
+            <header class="header">
+                <h1>🔗 QR Code Generator</h1>
+                <p>Generate QR codes for student attendance</p>
+            </header>
+
+            <!-- QR Generator Controls -->
+            <div class="qr-generator-section">
+                <!-- Single QR Generation -->
+                <div class="qr-section">
+                    <h3>🎫 Single QR Code</h3>
+                    <div class="form-group">
+                        <label for="qr-student-id">Student ID:</label>
+                        <input type="text" id="qr-student-id" class="form-control" placeholder="Enter student ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="qr-student-name">Student Name:</label>
+                        <input type="text" id="qr-student-name" class="form-control" placeholder="Enter student name (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label for="qr-format">QR Code Format:</label>
+                        <select id="qr-format" class="form-control">
+                            <option value="json">JSON (Recommended)</option>
+                            <option value="simple">Simple ID</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="qr-size">QR Code Size:</label>
+                        <select id="qr-size" class="form-control">
+                            <option value="200">200x200 (Small)</option>
+                            <option value="300" selected>300x300 (Medium)</option>
+                            <option value="400">400x400 (Large)</option>
+                        </select>
+                    </div>
+                    <button onclick="attendanceScanner.generateSingleQR()" class="btn btn-primary">📷 Generate QR Code</button>
+                </div>
+
+                <!-- Single QR Display -->
+                <div id="single-qr-container" class="qr-display">
+                    <div class="empty-state">
+                        <p>Enter student details and click "Generate QR Code" to create a QR code</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batch QR Generation -->
+            <div class="qr-generator-section">
+                <h3>📋 Batch QR Generation</h3>
+                <div class="form-group">
+                    <label for="batch-data">Student Data (ID,Name per line):</label>
+                    <textarea id="batch-data" class="form-control" rows="8" placeholder="123456,John Doe
+123457,Jane Smith
+123458,Bob Johnson"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="batch-size">QR Code Size:</label>
+                    <select id="batch-size" class="form-control">
+                        <option value="150">150x150 (Small)</option>
+                        <option value="200" selected>200x200 (Medium)</option>
+                        <option value="300">300x300 (Large)</option>
+                    </select>
+                </div>
+                <div class="action-buttons">
+                    <button onclick="attendanceScanner.generateBatchQR()" class="btn btn-primary">📷 Generate All QR Codes</button>
+                    <button id="download-batch-btn" onclick="attendanceScanner.downloadAllQR()" class="btn btn-success" disabled>📋 Download All</button>
+                    <button id="print-sheet-btn" onclick="attendanceScanner.generatePrintableSheet()" class="btn btn-info" disabled>🖨️ Print Sheet</button>
+                    <button onclick="attendanceScanner.clearBatch()" class="btn btn-warning">🗑️ Clear All</button>
+                </div>
+
+                <!-- Batch Status -->
+                <div id="batch-status"></div>
+
+                <!-- Batch QR Display -->
+                <div id="batch-qr-container" class="batch-qr-grid"></div>
             </div>
         </div>
 
@@ -209,6 +280,10 @@
                     <label for="school-name">School Name:</label>
                     <input type="text" id="school-name" class="form-control" placeholder="Enter school name">
                 </div>
+                <div class="form-group">
+                    <label for="school-name">School Name:</label>
+                    <input type="text" id="school-name" class="form-control" placeholder="Enter school name">
+                </div>
             </div>
 
             <!-- Data Management -->
@@ -221,6 +296,9 @@
             </div>
         </div>
     </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
 
     <!-- QR Scanner Library -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
