@@ -647,8 +647,19 @@ class AttendanceScanner {
     setupTabNavigation() {
         const tabButtons = document.querySelectorAll('.nav-tab');
         const tabContents = document.querySelectorAll('.tab-content');
+        const navTabs = document.querySelector('.nav-tabs');
         
-        tabButtons.forEach(button => {
+        // Function to update sliding indicator position
+        const updateSlider = (activeIndex) => {
+            const translateX = activeIndex * 100;
+            navTabs.style.setProperty('--slider-position', `${translateX}%`);
+        };
+        
+        // Initialize slider position for the active tab
+        const activeTabIndex = Array.from(tabButtons).findIndex(btn => btn.classList.contains('active'));
+        updateSlider(activeTabIndex >= 0 ? activeTabIndex : 0);
+        
+        tabButtons.forEach((button, index) => {
             button.addEventListener('click', () => {
                 const targetTab = button.dataset.tab;
                 
@@ -662,6 +673,9 @@ class AttendanceScanner {
                 if (targetContent) {
                     targetContent.classList.add('active');
                 }
+                
+                // Update slider position
+                updateSlider(index);
             });
         });
     }
@@ -905,53 +919,9 @@ class AttendanceScanner {
         return `https://chart.googleapis.com/chart?chs=${size}x${size}&cht=qr&chl=${encodedData}&choe=UTF-8`;
     }
 
-    generateSingleQR() {
-        const studentId = document.getElementById('qr-student-id').value.trim();
-        const studentName = document.getElementById('qr-student-name').value.trim();
-        const format = document.getElementById('qr-format').value;
-        const size = document.getElementById('qr-size').value;
-
-        if (!studentId) {
-            this.showToast('Please enter a student ID', 'error');
-            return;
-        }
-
-        let qrData;
-        if (format === 'json') {
-            qrData = JSON.stringify({
-                id: studentId,
-                name: studentName || `Student ${studentId}`
-            });
-        } else {
-            qrData = studentId;
-        }
-
-        const qrUrl = this.generateQRCodeURL(qrData, size);
-        this.currentQRUrl = qrUrl;
-
-        const container = document.getElementById('single-qr-container');
-        container.innerHTML = `
-            <h3>${studentName || `Student ${studentId}`}</h3>
-            <p><strong>ID:</strong> ${studentId}</p>
-            <p><strong>Format:</strong> ${format === 'json' ? 'JSON' : 'Simple ID'}</p>
-            <img src="${qrUrl}" alt="QR Code for ${studentId}" 
-                 style="max-width: 100%; border: 1px solid #ddd; padding: 10px; background: white;"
-                 onerror="this.src='${this.generateQRCodeURLFallback(qrData, size)}'; this.onerror=null;">
-            <div style="margin-top: 15px;">
-                <p><strong>QR Code Data:</strong></p>
-                <code>${qrData}</code>
-            </div>
-            <div style="margin-top: 15px;">
-                <button class="btn btn-success" onclick="attendanceScanner.downloadImageFromUrl('${qrUrl}', 'student-qr-${studentId}.png')">💾 Download QR Code</button>
-            </div>
-        `;
-
-        this.showToast('QR Code generated successfully', 'success');
-    }
-
     generateBatchQR() {
         const batchData = document.getElementById('batch-data').value.trim();
-        const format = document.getElementById('qr-format').value;
+        const format = 'json'; // Default to JSON format for batch generation
         const size = document.getElementById('batch-size').value;
 
         if (!batchData) {

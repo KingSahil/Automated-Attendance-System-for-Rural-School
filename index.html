@@ -23,7 +23,7 @@
         <nav class="nav-tabs">
             <button class="nav-tab active" data-tab="scanner">📷 Scanner</button>
             <button class="nav-tab" data-tab="analytics">📊 Analytics</button>
-            <button class="nav-tab" data-tab="qr-generator">🔗 QR Generator</button>
+            <button class="nav-tab" data-tab="qr-generator">🔗 QR</button>
             <button class="nav-tab" data-tab="feedback">📧 Feedback</button>
             <button class="nav-tab" data-tab="settings">⚙️ Settings</button>
         </nav>
@@ -138,50 +138,12 @@
         <div id="qr-generator-tab" class="tab-content">
             <header class="header">
                 <h1>🔗 QR Code Generator</h1>
-                <p>Generate QR codes for student attendance</p>
+                <p>Generate QR codes for student attendance in batches</p>
             </header>
 
             <!-- QR Generator Controls -->
             <div class="qr-generator-section">
-                <!-- Single QR Generation -->
-                <div class="qr-section">
-                    <h3>🎫 Single QR Code</h3>
-                    <div class="form-group">
-                        <label for="qr-student-id">Student ID:</label>
-                        <input type="text" id="qr-student-id" class="form-control" placeholder="Enter student ID">
-                    </div>
-                    <div class="form-group">
-                        <label for="qr-student-name">Student Name:</label>
-                        <input type="text" id="qr-student-name" class="form-control" placeholder="Enter student name (optional)">
-                    </div>
-                    <div class="form-group">
-                        <label for="qr-format">QR Code Format:</label>
-                        <select id="qr-format" class="form-control">
-                            <option value="json">JSON (Recommended)</option>
-                            <option value="simple">Simple ID</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="qr-size">QR Code Size:</label>
-                        <select id="qr-size" class="form-control">
-                            <option value="200">200x200 (Small)</option>
-                            <option value="300" selected>300x300 (Medium)</option>
-                            <option value="400">400x400 (Large)</option>
-                        </select>
-                    </div>
-                    <button onclick="attendanceScanner.generateSingleQR()" class="btn btn-primary">📷 Generate QR Code</button>
-                </div>
-
-                <!-- Single QR Display -->
-                <div id="single-qr-container" class="qr-display">
-                    <div class="empty-state">
-                        <p>Enter student details and click "Generate QR Code" to create a QR code</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Batch QR Generation -->
-            <div class="qr-generator-section">
+                <!-- Batch QR Generation -->
                 <h3>📋 Batch QR Generation</h3>
                 <div class="form-group">
                     <label for="batch-data">Student Data (ID,Name per line):</label>
