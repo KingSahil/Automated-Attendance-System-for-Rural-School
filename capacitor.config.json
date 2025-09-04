@@ -1,0 +1,34 @@
+{
+  "appId": "com.ruralschool.attendance",
+  "appName": "Rural Attendance Scanner",
+  "webDir": "www",
+  "server": {
+    "allowNavigation": [
+      "https://cdn.jsdelivr.net",
+      "https://www.gstatic.com",
+      "https://api.qrserver.com",
+      "https://chart.googleapis.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true,
+    "useLegacyBridge": false,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "Camera": {
+      "permissions": [
+        "camera"
+      ]
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#667eea"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#667eea",
+      "androidSplashResourceName": "splash"
+    }
+  }
+}

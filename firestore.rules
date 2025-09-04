@@ -1,0 +1,40 @@
+// Firestore Security Rules for Rural Attendance Scanner
+// These rules need to be applied in your Firebase Console -> Firestore Database -> Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Allow read/write access to school attendance data
+    // This is a permissive rule for development - tighten for production
+    match /schools/{schoolId}/attendance/{attendanceId} {
+      allow read, write: if true;
+    }
+    
+    // Test collection for permission checking
+    match /test/{document} {
+      allow read: if true;
+    }
+    
+    // For production, consider implementing these more secure rules:
+    
+    // Option 1: Allow access based on school name in user claims (requires Firebase Auth)
+    // match /schools/{schoolId}/attendance/{attendanceId} {
+    //   allow read, write: if request.auth != null && 
+    //     request.auth.token.school == schoolId;
+    // }
+    
+    // Option 2: Allow access based on teacher authentication
+    // match /schools/{schoolId}/attendance/{attendanceId} {
+    //   allow read, write: if request.auth != null && 
+    //     request.auth.token.email_verified == true;
+    // }
+    
+    // Option 3: Time-based access (only during school hours)
+    // match /schools/{schoolId}/attendance/{attendanceId} {
+    //   allow read, write: if request.auth != null && 
+    //     request.time.toMillis() > timestamp.date(2024, 1, 1).toMillis() &&
+    //     request.time.hours() >= 6 && request.time.hours() <= 18;
+    // }
+  }
+}

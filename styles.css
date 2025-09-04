@@ -424,6 +424,39 @@ body {
     font-size: 1.1rem;
 }
 
+/* Sync Status */
+.sync-status {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.sync-status.online {
+    background: #e8f5e8;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+.sync-status.offline {
+    background: #fff3e0;
+    color: #f57c00;
+    border: 1px solid #ffb74d;
+}
+
+.sync-status.syncing {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #64b5f6;
+}
+
+.sync-status.error {
+    background: #ffebee;
+    color: #d32f2f;
+    border: 1px solid #ef5350;
+}
+
 .form-group {
     margin-bottom: 15px;
 }
@@ -449,6 +482,18 @@ body {
     outline: none;
     border-color: #2196F3;
     box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.required {
+    color: #f44336;
+    font-weight: bold;
+}
+
+.help-text {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 4px;
+    display: block;
 }
 
 /* Analytics Styles */

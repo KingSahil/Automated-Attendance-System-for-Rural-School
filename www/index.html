@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rural Attendance Scanner</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2196F3">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Attendance Scanner">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading" class="loading-screen hidden">
+        <div class="loading-spinner"></div>
+        <p>Loading...</p>
+    </div>
+    
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="scanner">📷 Scanner</button>
+            <button class="nav-tab" data-tab="analytics">📊 Analytics</button>
+            <button class="nav-tab" data-tab="qr-generator">🔗 QR</button>
+            <button class="nav-tab" data-tab="feedback">📧 Feedback</button>
+            <button class="nav-tab" data-tab="settings">⚙️ Settings</button>
+        </nav>
+
+        <!-- Scanner Tab Content -->
+        <div id="scanner-tab" class="tab-content active">
+            <header class="header">
+                <h1>📱 Attendance Scanner</h1>
+                <p>Scan student QR codes for attendance</p>
+            </header>
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-label">Today's Date</span>
+                    <span class="status-value" id="current-date">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Students Present</span>
+                    <span class="status-value" id="students-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Last Scan</span>
+                    <span class="status-value" id="last-scan">-</span>
+                </div>
+            </div>
+
+            <!-- Scanner Section -->
+            <div class="scanner-section">
+                <div class="camera-container">
+                    <video id="video" playsinline></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="scan-overlay">
+                        <div class="scan-frame"></div>
+                        <div class="scan-instruction">📷 Point camera at QR code</div>
+                    </div>
+                </div>
+                
+                <div class="scanner-controls">
+                    <button id="start-scan" class="btn btn-primary">📷 Start Scanner</button>
+                    <button id="stop-scan" class="btn btn-secondary" style="display: none;">⏹️ Stop Scanner</button>
+                    <button id="switch-camera" class="btn btn-info" style="display: none;">🔄 Switch Camera</button>
+                </div>
+            </div>
+
+            <!-- Attendance List -->
+            <div class="attendance-section">
+                <h3>👥 Today's Attendance</h3>
+                <div id="attendance-list" class="attendance-list">
+                    <div class="empty-state">
+                        <p>No students scanned yet. Start scanning QR codes to mark attendance.</p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button id="download-csv" class="btn btn-success">💾 Download CSV</button>
+                    <button id="download-json" class="btn btn-info">📊 Download JSON</button>
+                    <button id="clear-attendance" class="btn btn-warning">🗑️ Clear Today's Attendance</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Tab Content -->
+        <div id="analytics-tab" class="tab-content">
+            <header class="header">
+                <h1>📊 Student Analytics</h1>
+                <p>View attendance patterns and statistics</p>
+            </header>
+
+            <!-- Date Selector -->
+            <div class="analytics-controls">
+                <div class="date-range">
+                    <label for="analytics-selected-date">📅 Select Date:</label>
+                    <input type="date" id="analytics-selected-date" class="date-picker">
+                    <button id="view-attendance" class="btn btn-primary">👀 View Attendance</button>
+                </div>
+            </div>
+
+            <!-- Analytics Summary -->
+            <div class="analytics-summary">
+                <div class="summary-card">
+                    <h3>📅 Selected Date</h3>
+                    <span id="selected-date-display" class="summary-value">-</span>
+                </div>
+                <div class="summary-card">
+                    <h3>👥 Students Present</h3>
+                    <span id="students-present-count" class="summary-value">0</span>
+                </div>
+                <div class="summary-card">
+                    <h3>⏰ First Scan</h3>
+                    <span id="first-scan-time" class="summary-value">-</span>
+                </div>
+                <div class="summary-card">
+                    <h3>⏰ Last Scan</h3>
+                    <span id="last-scan-time" class="summary-value">-</span>
+                </div>
+            </div>
+
+            <!-- Student Attendance List -->
+            <div class="student-analytics">
+                <h3>📋 Students Attendance</h3>
+                <div id="analytics-attendance-list" class="analytics-list">
+                    <div class="empty-state">
+                        <p>Select a date and click "View Attendance" to see student list</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QR Generator Tab Content -->
+        <div id="qr-generator-tab" class="tab-content">
+            <header class="header">
+                <h1>🔗 QR Code Generator</h1>
+                <p>Generate QR codes for student attendance in batches</p>
+            </header>
+
+            <!-- QR Generator Controls -->
+            <div class="qr-generator-section">
+                <!-- Batch QR Generation -->
+                <h3>📋 Batch QR Generation</h3>
+                <div class="form-group">
+                    <label for="batch-data">Student Data (ID,Name per line):</label>
+                    <textarea id="batch-data" class="form-control" rows="8" placeholder="123456,John Doe
+123457,Jane Smith
+123458,Bob Johnson"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="batch-size">QR Code Size:</label>
+                    <select id="batch-size" class="form-control">
+                        <option value="150">150x150 (Small)</option>
+                        <option value="200" selected>200x200 (Medium)</option>
+                        <option value="300">300x300 (Large)</option>
+                    </select>
+                </div>
+                <div class="action-buttons">
+                    <button onclick="attendanceScanner.generateBatchQR()" class="btn btn-primary">📷 Generate All QR Codes</button>
+                    <button id="download-batch-btn" onclick="attendanceScanner.downloadAllQR()" class="btn btn-success" disabled>📋 Download All</button>
+                    <button id="print-sheet-btn" onclick="attendanceScanner.generatePrintableSheet()" class="btn btn-info" disabled>🖨️ Print Sheet</button>
+                    <button onclick="attendanceScanner.clearBatch()" class="btn btn-warning">🗑️ Clear All</button>
+                </div>
+
+                <!-- Batch Status -->
+                <div id="batch-status"></div>
+
+                <!-- Batch QR Display -->
+                <div id="batch-qr-container" class="batch-qr-grid"></div>
+            </div>
+        </div>
+
+        <!-- Feedback Tab Content -->
+        <div id="feedback-tab" class="tab-content">
+            <header class="header">
+                <h1>📧 Parent Feedback</h1>
+                <p>Send attendance reports to parents</p>
+            </header>
+
+            <!-- Feedback Controls -->
+            <div class="feedback-controls">
+                <div class="form-group">
+                    <label for="feedback-period">Report Period:</label>
+                    <select id="feedback-period" class="form-control">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                
+                <div id="custom-feedback-range" class="date-range" style="display: none;">
+                    <label>From:</label>
+                    <input type="date" id="feedback-from-date" class="date-picker">
+                    <label>To:</label>
+                    <input type="date" id="feedback-to-date" class="date-picker">
+                </div>
+
+                <div class="form-group">
+                    <label for="feedback-type">Feedback Type:</label>
+                    <select id="feedback-type" class="form-control">
+                        <option value="summary">Summary Report</option>
+                        <option value="detailed">Detailed Report</option>
+                        <option value="alerts">Attendance Alerts Only</option>
+                    </select>
+                </div>
+
+                <button id="generate-feedback" class="btn btn-primary">📧 Generate Feedback Reports</button>
+            </div>
+
+            <!-- Generated Feedback -->
+            <div id="feedback-reports" class="feedback-reports">
+                <div class="empty-state">
+                    <p>Select options above and click "Generate Feedback Reports" to create parent reports</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab Content -->
+        <div id="settings-tab" class="tab-content">
+            <header class="header">
+                <h1>⚙️ Settings</h1>
+                <p>Configure application preferences</p>
+            </header>
+
+            <!-- Teacher Information -->
+            <div class="settings-section">
+                <h3>👩‍🏫 Teacher Information</h3>
+                <div class="form-group">
+                    <label for="teacher-name">Teacher Name:</label>
+                    <input type="text" id="teacher-name" class="form-control" placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label for="class-subject">Class/Subject:</label>
+                    <input type="text" id="class-subject" class="form-control" placeholder="e.g., Grade 5 - Mathematics">
+                </div>
+                <div class="form-group">
+                    <label for="school-name">School Name:</label>
+                    <input type="text" id="school-name" class="form-control" placeholder="Enter school name">
+                </div>
+                <div class="form-group">
+                    <label for="school-name">School Name:</label>
+                    <input type="text" id="school-name" class="form-control" placeholder="Enter school name">
+                </div>
+            </div>
+
+            <!-- Data Management -->
+            <div class="settings-section">
+                <h3>🗄️ Data Management</h3>
+                <div class="action-buttons">
+                    <button id="export-all-data" class="btn btn-info">📋 Export All Data</button>
+                    <button id="sync-to-cloud" class="btn btn-primary">☁️ Sync to Cloud</button>
+                    <button id="download-cloud-data" class="btn btn-success">📥 Download from Cloud</button>
+                    <button id="clear-all-data" class="btn btn-danger">🗑️ Clear All Data</button>
+                </div>
+                <div id="sync-status" class="sync-status"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- QR Scanner Library -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Capacitor Core -->
+    <script type="module" src="https://unpkg.com/@capacitor/core@latest/dist/capacitor.js"></script>
+    
+    <!-- Main Application Script -->
+    <script src="app.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(function(registration) {
+                    console.log('Service Worker registered successfully:', registration.scope);
+                })
+                .catch(function(error) {
+                    console.log('Service Worker registration failed:', error);
+                });
+        }
+    </script>
+</body>
+</html>

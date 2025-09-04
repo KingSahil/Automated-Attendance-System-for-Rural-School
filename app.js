@@ -9,20 +9,45 @@ class AttendanceScanner {
         this.scanCount = 0;
         this.selectedDate = new Date().toISOString().split('T')[0]; // Always use current date
         
+        // Firebase configuration
+        this.firebaseConfig = {
+            apiKey: "AIzaSyDZ5SOWINosulgoIjcobAfiNEXuMiY4RUY",
+            authDomain: "rural-attendance.firebaseapp.com",
+            projectId: "rural-attendance",
+            storageBucket: "rural-attendance.firebasestorage.app",
+            messagingSenderId: "340744415747",
+            appId: "1:340744415747:web:3d7d7634ee43b33444bc36",
+            measurementId: "G-KBGB79CN0Z"
+        };
+        
+        this.db = null;
+        this.isOnline = navigator.onLine;
+        this.pendingSyncData = [];
+        
+        // Capacitor plugins initialization
+        this.isCapacitor = typeof window.Capacitor !== 'undefined';
+        this.initializeCapacitorPlugins();
+        
         this.init();
     }
 
     init() {
+        this.initializeFirebase();
+        this.setupOnlineOfflineListeners();
         this.setupEventListeners();
         this.setupTabNavigation();
         this.loadSettings();
         this.loadAttendanceData();
+        this.loadPendingSyncData();
         this.updateUI();
         this.updateDateTime();
         this.initializeDatePickers();
         
         // Update date every minute
         setInterval(() => this.updateDateTime(), 60000);
+        
+        // Sync data every 5 minutes if online
+        setInterval(() => this.syncDataToFirebase(), 300000);
         
         // Hide loading screen
         this.hideLoading();
@@ -54,6 +79,8 @@ class AttendanceScanner {
         
         // Settings actions
         document.getElementById('export-all-data').addEventListener('click', () => this.exportAllData());
+        document.getElementById('sync-to-cloud').addEventListener('click', () => this.syncDataToFirebase());
+        document.getElementById('download-cloud-data').addEventListener('click', () => this.downloadCloudData());
         document.getElementById('clear-all-data').addEventListener('click', () => this.clearAllData());
         
         // QR Generator initialization
@@ -802,6 +829,48 @@ class AttendanceScanner {
     }
 
     downloadFile(content, fileName, mimeType) {
+        if (this.isCapacitor) {
+            this.downloadFileNative(content, fileName, mimeType);
+        } else {
+            this.downloadFileBrowser(content, fileName, mimeType);
+        }
+    }
+    
+    async downloadFileNative(content, fileName, mimeType) {
+        try {
+            const { Filesystem } = window.Capacitor.Plugins;
+            const { Share } = window.Capacitor.Plugins;
+            
+            // Write file to device storage
+            const result = await Filesystem.writeFile({
+                path: fileName,
+                data: content,
+                directory: 'DOCUMENTS',
+                encoding: 'utf8'
+            });
+            
+            this.showToast(`File saved: ${fileName}`, 'success');
+            
+            // Optionally share the file
+            if (Share) {
+                const shouldShare = confirm('File saved successfully. Would you like to share it?');
+                if (shouldShare) {
+                    await Share.share({
+                        title: fileName,
+                        text: `Attendance data from Rural Attendance Scanner`,
+                        url: result.uri
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error saving file natively:', error);
+            this.showToast('Error saving file: ' + error.message, 'error');
+            // Fallback to browser download
+            this.downloadFileBrowser(content, fileName, mimeType);
+        }
+    }
+    
+    downloadFileBrowser(content, fileName, mimeType) {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
         
@@ -818,6 +887,15 @@ class AttendanceScanner {
     saveAttendanceData() {
         try {
             localStorage.setItem('attendanceData', JSON.stringify(this.attendanceData));
+            
+            // Trigger cloud sync if online
+            if (this.isOnline && this.db) {
+                // Debounce sync to avoid excessive calls
+                clearTimeout(this.syncTimeout);
+                this.syncTimeout = setTimeout(() => {
+                    this.syncDataToFirebase();
+                }, 2000);
+            }
         } catch (error) {
             console.error('Error saving attendance data:', error);
             this.showToast('Failed to save attendance data', 'error');
@@ -1144,6 +1222,323 @@ class AttendanceScanner {
         }, 1000);
         
         this.showToast('Print sheet generated', 'success');
+    }
+
+    // Firebase Integration Methods
+    initializeCapacitorPlugins() {
+        if (!this.isCapacitor) {
+            console.log('Running in browser mode');
+            return;
+        }
+        
+        try {
+            // Initialize Capacitor plugins
+            const { StatusBar } = window.Capacitor.Plugins;
+            const { SplashScreen } = window.Capacitor.Plugins;
+            const { Network } = window.Capacitor.Plugins;
+            const { Device } = window.Capacitor.Plugins;
+            
+            // Set status bar style
+            if (StatusBar) {
+                StatusBar.setStyle({ style: 'DARK' });
+                StatusBar.setBackgroundColor({ color: '#667eea' });
+            }
+            
+            // Hide splash screen after app loads
+            if (SplashScreen) {
+                setTimeout(() => {
+                    SplashScreen.hide();
+                }, 2000);
+            }
+            
+            // Monitor network status
+            if (Network) {
+                Network.addListener('networkStatusChange', (status) => {
+                    this.isOnline = status.connected;
+                    if (status.connected) {
+                        this.updateSyncStatus('online', 'Connected - Auto sync enabled');
+                        this.syncDataToFirebase();
+                    } else {
+                        this.updateSyncStatus('offline', 'Offline - Data will sync when connected');
+                    }
+                });
+                
+                // Get initial network status
+                Network.getStatus().then((status) => {
+                    this.isOnline = status.connected;
+                });
+            }
+            
+            console.log('Capacitor plugins initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize Capacitor plugins:', error);
+        }
+    }
+
+    initializeFirebase() {
+        try {
+            // Only initialize if Firebase is available
+            if (typeof firebase !== 'undefined') {
+                // Use demo config by default - users should replace with their own
+                const defaultConfig = {
+                    apiKey: "demo-api-key",
+                    authDomain: "rural-attendance-demo.firebaseapp.com",
+                    projectId: "rural-attendance-demo",
+                    storageBucket: "rural-attendance-demo.appspot.com",
+                    messagingSenderId: "123456789",
+                    appId: "demo-app-id"
+                };
+                
+                // Initialize Firebase
+                if (!firebase.apps.length) {
+                    // Check if user has configured their own Firebase project
+                    const hasValidConfig = this.firebaseConfig.apiKey !== 'your-api-key' && 
+                                         this.firebaseConfig.projectId !== 'your-project-id';
+                    
+                    firebase.initializeApp(hasValidConfig ? this.firebaseConfig : defaultConfig);
+                }
+                
+                this.db = firebase.firestore();
+                
+                // Only enable network if we have a valid configuration
+                const hasValidConfig = this.firebaseConfig.apiKey !== 'your-api-key';
+                if (!hasValidConfig) {
+                    console.log('Using demo Firebase config - cloud sync disabled');
+                    this.db = null;
+                    this.updateSyncStatus('offline', 'Cloud sync disabled - Configure Firebase to enable');
+                    return;
+                }
+                
+                console.log('Firebase initialized successfully');
+                
+                // Try to sync existing data if online
+                if (this.isOnline) {
+                    this.syncDataToFirebase();
+                }
+            } else {
+                console.log('Firebase not available - running in offline-only mode');
+                this.updateSyncStatus('offline', 'Firebase not available - offline only');
+            }
+        } catch (error) {
+            console.error('Firebase initialization failed:', error);
+            this.db = null;
+            this.updateSyncStatus('error', 'Firebase setup failed - offline only');
+            this.showToast('Cloud sync unavailable - running offline only', 'info');
+        }
+    }
+
+    setupOnlineOfflineListeners() {
+        window.addEventListener('online', () => {
+            this.isOnline = true;
+            this.updateSyncStatus('online', 'Connected - Auto sync enabled');
+            this.showToast('Internet connection restored', 'success');
+            this.syncDataToFirebase();
+        });
+        
+        window.addEventListener('offline', () => {
+            this.isOnline = false;
+            this.updateSyncStatus('offline', 'Offline - Data will sync when connected');
+            this.showToast('Working offline - data will sync when connected', 'info');
+        });
+        
+        // Initialize sync status
+        this.updateSyncStatus(
+            this.isOnline ? 'online' : 'offline',
+            this.isOnline ? 'Connected - Auto sync enabled' : 'Offline - Data will sync when connected'
+        );
+    }
+
+    async syncDataToFirebase() {
+        if (!this.isOnline || !this.db) {
+            this.updateSyncStatus('offline', 'Offline - Cannot sync to cloud');
+            return;
+        }
+
+        try {
+            this.updateSyncStatus('syncing', 'Syncing data to cloud...');
+            
+            const settings = this.getSettings();
+            const deviceId = this.getDeviceId();
+            
+            // Validate settings before sync
+            if (!settings.schoolName || !settings.teacherName) {
+                this.updateSyncStatus('error', 'Please configure school and teacher name in Settings');
+                this.showToast('Please set school and teacher name in Settings before syncing', 'error');
+                return;
+            }
+            
+            // Create a unique collection path based on school/teacher
+            const collectionPath = `schools/${settings.schoolName.replace(/[^a-zA-Z0-9]/g, '_')}/attendance`;
+            
+            let syncedCount = 0;
+            
+            // Test Firebase permissions first with a simple read
+            try {
+                await this.db.collection('test').limit(1).get();
+            } catch (permError) {
+                if (permError.code === 'permission-denied') {
+                    this.updateSyncStatus('error', 'Firebase permissions not configured - check Firestore rules');
+                    this.showToast('Firebase permissions denied. Please configure Firestore security rules.', 'error');
+                    return;
+                }
+                throw permError;
+            }
+            
+            // Sync attendance data
+            for (const entry of this.attendanceData) {
+                if (!entry.synced) {
+                    try {
+                        const docRef = this.db.collection(collectionPath).doc();
+                        await docRef.set({
+                            ...entry,
+                            deviceId: deviceId,
+                            teacherName: settings.teacherName,
+                            classSubject: settings.classSubject || 'Unknown',
+                            schoolName: settings.schoolName,
+                            syncedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            synced: true
+                        });
+                        
+                        // Mark as synced in local data
+                        entry.synced = true;
+                        syncedCount++;
+                    } catch (entryError) {
+                        console.error('Failed to sync entry:', entry.studentId, entryError);
+                        // Continue with other entries
+                    }
+                }
+            }
+            
+            // Save updated local data
+            this.saveAttendanceData();
+            
+            // Clear pending sync data
+            this.pendingSyncData = [];
+            this.savePendingSyncData();
+            
+            this.updateSyncStatus('online', `Synced successfully - ${syncedCount} records uploaded`);
+            
+            if (syncedCount > 0) {
+                this.showToast(`Synced ${syncedCount} records to cloud`, 'success');
+            } else {
+                this.showToast('All data already synced', 'info');
+            }
+            
+            console.log('Data synced to Firebase successfully');
+        } catch (error) {
+            console.error('Failed to sync data to Firebase:', error);
+            
+            // Handle specific Firebase errors
+            if (error.code === 'permission-denied') {
+                this.updateSyncStatus('error', 'Permission denied - Check Firestore rules');
+                this.showToast('Firebase permission denied. Please check your Firestore security rules.', 'error');
+            } else if (error.code === 'unavailable') {
+                this.updateSyncStatus('error', 'Firebase service unavailable - Will retry');
+                this.showToast('Firebase temporarily unavailable - Will retry automatically', 'error');
+            } else if (error.code === 'unauthenticated') {
+                this.updateSyncStatus('error', 'Authentication required');
+                this.showToast('Authentication required for cloud sync', 'error');
+            } else {
+                this.updateSyncStatus('error', 'Sync failed - Will retry automatically');
+                this.showToast('Sync failed - Will retry when connection improves', 'error');
+            }
+            
+            // Add failed data to pending sync
+            const unsyncedData = this.attendanceData.filter(entry => !entry.synced);
+            this.pendingSyncData = [...this.pendingSyncData, ...unsyncedData];
+            this.savePendingSyncData();
+        }
+    }
+
+    getDeviceId() {
+        let deviceId = localStorage.getItem('deviceId');
+        if (!deviceId) {
+            deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            localStorage.setItem('deviceId', deviceId);
+        }
+        return deviceId;
+    }
+
+    loadPendingSyncData() {
+        try {
+            const saved = localStorage.getItem('pendingSyncData');
+            if (saved) {
+                this.pendingSyncData = JSON.parse(saved);
+            }
+        } catch (error) {
+            console.error('Error loading pending sync data:', error);
+            this.pendingSyncData = [];
+        }
+    }
+
+    savePendingSyncData() {
+        try {
+            localStorage.setItem('pendingSyncData', JSON.stringify(this.pendingSyncData));
+        } catch (error) {
+            console.error('Error saving pending sync data:', error);
+        }
+    }
+
+    async downloadCloudData() {
+        if (!this.isOnline || !this.db) {
+            this.showToast('Cloud sync not available', 'error');
+            return;
+        }
+
+        try {
+            const settings = this.getSettings();
+            const collectionPath = `schools/${settings.schoolName || 'default'}/attendance`;
+            
+            this.showToast('Downloading cloud data...', 'info');
+            
+            const snapshot = await this.db.collection(collectionPath)
+                .where('teacherName', '==', settings.teacherName || 'Unknown')
+                .orderBy('timestamp', 'desc')
+                .limit(1000)
+                .get();
+            
+            const cloudData = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                cloudData.push({
+                    studentId: data.studentId,
+                    studentName: data.studentName,
+                    timestamp: data.timestamp,
+                    date: data.date,
+                    time: data.time,
+                    synced: true
+                });
+            });
+            
+            // Merge with local data (avoid duplicates)
+            const mergedData = [...this.attendanceData];
+            cloudData.forEach(cloudEntry => {
+                const exists = mergedData.some(localEntry => 
+                    localEntry.studentId === cloudEntry.studentId &&
+                    localEntry.timestamp === cloudEntry.timestamp
+                );
+                if (!exists) {
+                    mergedData.push(cloudEntry);
+                }
+            });
+            
+            this.attendanceData = mergedData;
+            this.saveAttendanceData();
+            this.updateUI();
+            
+            this.showToast(`Downloaded ${cloudData.length} cloud records`, 'success');
+        } catch (error) {
+            console.error('Failed to download cloud data:', error);
+            this.showToast('Failed to download cloud data', 'error');
+        }
+    }
+
+    updateSyncStatus(status, message) {
+        const syncStatusElement = document.getElementById('sync-status');
+        if (syncStatusElement) {
+            syncStatusElement.className = `sync-status ${status}`;
+            syncStatusElement.textContent = message;
+        }
     }
 }
 
