@@ -125,6 +125,11 @@ class AttendanceScanner {
     }
 
     scanQRCode() {
+        // Continue scanning loop even if temporarily paused
+        if (this.video && this.video.srcObject) {
+            requestAnimationFrame(() => this.scanQRCode());
+        }
+        
         if (!this.isScanning) return;
 
         // Draw video frame to canvas
@@ -139,9 +144,6 @@ class AttendanceScanner {
         if (code) {
             this.processQRCode(code.data);
         }
-        
-        // Continue scanning
-        requestAnimationFrame(() => this.scanQRCode());
     }
 
     processQRCode(qrData) {
@@ -197,7 +199,11 @@ class AttendanceScanner {
             // Brief pause to prevent multiple scans
             this.isScanning = false;
             setTimeout(() => {
-                this.isScanning = true;
+                if (this.video && this.video.srcObject) {
+                    this.isScanning = true;
+                    // Ensure scanning resumes after timeout
+                    this.scanQRCode();
+                }
             }, 1000);
             
         } catch (error) {
