@@ -13,7 +13,12 @@
   "android": {
     "allowMixedContent": true,
     "useLegacyBridge": false,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": true,
+    "buildOptions": {
+      "compileSdkVersion": 35,
+      "targetSdkVersion": 34,
+      "minSdkVersion": 23
+    }
   },
   "plugins": {
     "Camera": {

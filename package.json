@@ -19,15 +19,14 @@
   },
   "homepage": "https://github.com/KingSahil/Automated-Attendance-System-for-Rural-School#readme",
   "dependencies": {
-    "@capacitor/android": "^7.4.3",
-    "@capacitor/camera": "^7.0.2",
-    "@capacitor/cli": "^7.4.3",
-    "@capacitor/core": "^7.4.3",
-    "@capacitor/device": "^7.0.2",
-    "@capacitor/filesystem": "^7.1.4",
-    "@capacitor/network": "^7.0.2",
-    "@capacitor/share": "^7.0.2",
-    "@capacitor/splash-screen": "^7.0.2",
-    "@capacitor/status-bar": "^7.0.2"
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/camera": "^6.0.2",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/device": "^6.0.1",
+    "@capacitor/network": "^6.0.2",
+    "@capacitor/share": "^6.0.2",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1"
   }
 }

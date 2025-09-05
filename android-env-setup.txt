@@ -1,0 +1,11 @@
+# Add this to your system environment variables
+# You can do this by:
+# 1. Right-click "This PC" → Properties → Advanced System Settings → Environment Variables
+# 2. Add these as System Variables:
+
+ANDROID_HOME=C:\Users\aanch\android-sdk
+ANDROID_SDK_ROOT=C:\Users\aanch\android-sdk
+
+# Also add to PATH:
+C:\Users\aanch\android-sdk\cmdline-tools\latest\bin
+C:\Users\aanch\android-sdk\platform-tools

@@ -23,11 +23,23 @@ class AttendanceScanner {
         this.db = null;
         this.isOnline = navigator.onLine;
         this.pendingSyncData = [];
+        this.isSyncing = false;
+        this.lastSyncAttempt = 0;
+        this.syncDebounceTimeout = null;
         
         this.init();
     }
 
     init() {
+        // Ensure DOM is ready before proceeding
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.initializeApp());
+        } else {
+            this.initializeApp();
+        }
+    }
+    
+    initializeApp() {
         this.initializeFirebase();
         this.setupOnlineOfflineListeners();
         this.setupEventListeners();
@@ -42,8 +54,12 @@ class AttendanceScanner {
         // Update date every minute
         setInterval(() => this.updateDateTime(), 60000);
         
-        // Sync data every 5 minutes if online
-        setInterval(() => this.syncDataToFirebase(), 300000);
+        // Sync data every 5 minutes if online (with debouncing)
+        setInterval(() => {
+            if (this.isOnline && this.db && !this.isSyncing) {
+                this.syncDataToFirebase();
+            }
+        }, 300000);
         
         // Hide loading screen
         this.hideLoading();
@@ -75,7 +91,7 @@ class AttendanceScanner {
         
         // Settings actions
         document.getElementById('export-all-data').addEventListener('click', () => this.exportAllData());
-        document.getElementById('sync-to-cloud').addEventListener('click', () => this.syncDataToFirebase());
+        document.getElementById('sync-to-cloud').addEventListener('click', () => this.syncDataToFirebase('manual'));
         document.getElementById('download-cloud-data').addEventListener('click', () => this.downloadCloudData());
         document.getElementById('clear-all-data').addEventListener('click', () => this.clearAllData());
         
@@ -99,28 +115,58 @@ class AttendanceScanner {
                 throw new Error('Camera access is not supported on this device');
             }
 
-            // Request camera access
-            this.stream = await navigator.mediaDevices.getUserMedia({
+            // Check for camera permissions (Capacitor/Android specific)
+            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                const { Camera } = window.Capacitor.Plugins;
+                if (Camera) {
+                    try {
+                        // Check camera permissions on native platforms
+                        const permissions = await Camera.checkPermissions();
+                        if (permissions.camera !== 'granted') {
+                            const requestResult = await Camera.requestPermissions();
+                            if (requestResult.camera !== 'granted') {
+                                throw new Error('Camera permission denied. Please enable camera access in app settings.');
+                            }
+                        }
+                    } catch (permError) {
+                        console.warn('Camera permission check failed:', permError);
+                        // Continue with web API fallback
+                    }
+                }
+            }
+
+            // Request camera access with enhanced constraints for Android
+            const constraints = {
                 video: {
                     facingMode: 'environment', // Use back camera on mobile
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
+                    width: { ideal: 640, min: 320, max: 1280 },
+                    height: { ideal: 480, min: 240, max: 720 },
+                    frameRate: { ideal: 30, min: 15, max: 30 }
                 }
-            });
+            };
+
+            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
 
             this.video.srcObject = this.stream;
             
             // Wait for video to be ready
-            await new Promise((resolve) => {
+            await new Promise((resolve, reject) => {
                 this.video.onloadedmetadata = () => {
-                    this.video.play();
-                    resolve();
+                    this.video.play().then(resolve).catch(reject);
                 };
+                this.video.onerror = () => {
+                    reject(new Error('Video element failed to load'));
+                };
+                
+                // Timeout after 10 seconds
+                setTimeout(() => {
+                    reject(new Error('Camera initialization timeout'));
+                }, 10000);
             });
 
             // Setup canvas dimensions
-            this.canvas.width = this.video.videoWidth;
-            this.canvas.height = this.video.videoHeight;
+            this.canvas.width = this.video.videoWidth || 640;
+            this.canvas.height = this.video.videoHeight || 480;
 
             this.isScanning = true;
             this.updateScannerUI();
@@ -131,7 +177,20 @@ class AttendanceScanner {
         } catch (error) {
             console.error('Error starting camera:', error);
             this.hideLoading();
-            this.showToast('Failed to access camera: ' + error.message, 'error');
+            
+            // Provide specific error messages
+            let errorMessage = 'Failed to access camera';
+            if (error.name === 'NotAllowedError' || error.message.includes('permission')) {
+                errorMessage = 'Camera permission denied. Please allow camera access and try again.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage = 'No camera found on this device.';
+            } else if (error.name === 'NotReadableError') {
+                errorMessage = 'Camera is already in use by another application.';
+            } else if (error.message) {
+                errorMessage += ': ' + error.message;
+            }
+            
+            this.showToast(errorMessage, 'error');
         }
     }
 
@@ -842,9 +901,8 @@ class AttendanceScanner {
         try {
             localStorage.setItem('attendanceData', JSON.stringify(this.attendanceData));
             
-            // Trigger cloud sync if online
-            if (this.isOnline && this.db) {
-                // Debounce sync to avoid excessive calls
+            // Trigger cloud sync if online (with debouncing to avoid excessive calls)
+            if (this.isOnline && this.db && !this.isSyncing) {
                 clearTimeout(this.syncTimeout);
                 this.syncTimeout = setTimeout(() => {
                     this.syncDataToFirebase();
@@ -887,12 +945,23 @@ class AttendanceScanner {
             const saved = localStorage.getItem('appSettings');
             if (saved) {
                 const settings = JSON.parse(saved);
-                document.getElementById('teacher-name').value = settings.teacherName || '';
-                document.getElementById('class-subject').value = settings.classSubject || '';
-                const schoolNameElement = document.getElementById('school-name');
-                if (schoolNameElement) {
-                    schoolNameElement.value = settings.schoolName || '';
+                
+                // Ensure DOM elements exist before setting values
+                const teacherNameEl = document.getElementById('teacher-name');
+                const classSubjectEl = document.getElementById('class-subject');
+                const schoolNameEl = document.getElementById('school-name');
+                
+                if (teacherNameEl) {
+                    teacherNameEl.value = settings.teacherName || '';
                 }
+                if (classSubjectEl) {
+                    classSubjectEl.value = settings.classSubject || '';
+                }
+                if (schoolNameEl) {
+                    schoolNameEl.value = settings.schoolName || '';
+                }
+                
+                console.log('Settings loaded:', settings);
             }
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -900,11 +969,38 @@ class AttendanceScanner {
     }
 
     getSettings() {
-        return {
-            teacherName: document.getElementById('teacher-name').value,
-            classSubject: document.getElementById('class-subject').value,
-            schoolName: document.getElementById('school-name')?.value || ''
+        // Try to get from DOM elements first
+        const teacherNameEl = document.getElementById('teacher-name');
+        const classSubjectEl = document.getElementById('class-subject');
+        const schoolNameEl = document.getElementById('school-name');
+        
+        let settings = {
+            teacherName: '',
+            classSubject: '',
+            schoolName: ''
         };
+        
+        // Get values from DOM if elements exist
+        if (teacherNameEl) settings.teacherName = teacherNameEl.value || '';
+        if (classSubjectEl) settings.classSubject = classSubjectEl.value || '';
+        if (schoolNameEl) settings.schoolName = schoolNameEl.value || '';
+        
+        // If DOM elements don't exist or are empty, try localStorage as backup
+        if (!settings.teacherName || !settings.schoolName) {
+            try {
+                const saved = localStorage.getItem('appSettings');
+                if (saved) {
+                    const savedSettings = JSON.parse(saved);
+                    settings.teacherName = settings.teacherName || savedSettings.teacherName || '';
+                    settings.classSubject = settings.classSubject || savedSettings.classSubject || '';
+                    settings.schoolName = settings.schoolName || savedSettings.schoolName || '';
+                }
+            } catch (error) {
+                console.error('Error loading settings from localStorage:', error);
+            }
+        }
+        
+        return settings;
     }
 
     showToast(message, type = 'info') {
@@ -1219,7 +1315,10 @@ class AttendanceScanner {
             this.isOnline = true;
             this.updateSyncStatus('online', 'Connected - Auto sync enabled');
             this.showToast('Internet connection restored', 'success');
-            this.syncDataToFirebase();
+            // Only sync if we're not already syncing
+            if (!this.isSyncing) {
+                this.syncDataToFirebase();
+            }
         });
         
         window.addEventListener('offline', () => {
@@ -1236,16 +1335,49 @@ class AttendanceScanner {
     }
 
     async syncDataToFirebase() {
+        // Debounce sync calls to prevent excessive notifications
+        const now = Date.now();
+        const minInterval = 5000; // Minimum 5 seconds between sync attempts
+        
+        if (this.isSyncing) {
+            console.log('Sync already in progress, skipping...');
+            return;
+        }
+        
+        if (now - this.lastSyncAttempt < minInterval) {
+            console.log('Sync called too frequently, debouncing...');
+            clearTimeout(this.syncDebounceTimeout);
+            this.syncDebounceTimeout = setTimeout(() => {
+                this.syncDataToFirebase();
+            }, minInterval - (now - this.lastSyncAttempt));
+            return;
+        }
+        
         if (!this.isOnline || !this.db) {
             this.updateSyncStatus('offline', 'Offline - Cannot sync to cloud');
             return;
         }
 
         try {
+            this.isSyncing = true;
+            this.lastSyncAttempt = now;
             this.updateSyncStatus('syncing', 'Syncing data to cloud...');
             
             const settings = this.getSettings();
             const deviceId = this.getDeviceId();
+            
+            // Validate settings before sync - only check if we have meaningful data to sync
+            if (this.attendanceData.length > 0 && (!settings.schoolName || !settings.teacherName)) {
+                this.updateSyncStatus('error', 'Please configure school and teacher name in Settings');
+                this.showToast('Please set school and teacher name in Settings before syncing', 'error');
+                return;
+            }
+            
+            // If no attendance data, just skip sync silently
+            if (this.attendanceData.length === 0) {
+                console.log('No attendance data to sync');
+                return;
+            }
             
             // Create a unique collection path based on school/teacher
             const collectionPath = `schools/${settings.schoolName || 'default'}/attendance`;
@@ -1283,6 +1415,11 @@ class AttendanceScanner {
             
             if (syncedCount > 0) {
                 this.showToast(`Synced ${syncedCount} records to cloud`, 'success');
+            } else {
+                // Only show this message if manually triggered
+                if (arguments.length > 0 && arguments[0] === 'manual') {
+                    this.showToast('All data already synced', 'info');
+                }
             }
             
             console.log('Data synced to Firebase successfully');
@@ -1296,6 +1433,8 @@ class AttendanceScanner {
             this.savePendingSyncData();
             
             this.showToast('Sync failed - Will retry when connection improves', 'error');
+        } finally {
+            this.isSyncing = false;
         }
     }
 
@@ -1393,17 +1532,6 @@ class AttendanceScanner {
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Register service worker for offline functionality
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
-            .then(registration => {
-                console.log('SW registered:', registration);
-            })
-            .catch(error => {
-                console.log('SW registration failed:', error);
-            });
-    }
-
     // Initialize the attendance scanner
     window.attendanceScanner = new AttendanceScanner();
 });

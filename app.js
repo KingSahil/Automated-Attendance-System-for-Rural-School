@@ -23,6 +23,9 @@ class AttendanceScanner {
         this.db = null;
         this.isOnline = navigator.onLine;
         this.pendingSyncData = [];
+        this.isSyncing = false;
+        this.lastSyncAttempt = 0;
+        this.syncDebounceTimeout = null;
         
         // Capacitor plugins initialization
         this.isCapacitor = typeof window.Capacitor !== 'undefined';
@@ -32,6 +35,15 @@ class AttendanceScanner {
     }
 
     init() {
+        // Ensure DOM is ready before proceeding
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.initializeApp());
+        } else {
+            this.initializeApp();
+        }
+    }
+    
+    initializeApp() {
         this.initializeFirebase();
         this.setupOnlineOfflineListeners();
         this.setupEventListeners();
@@ -46,8 +58,12 @@ class AttendanceScanner {
         // Update date every minute
         setInterval(() => this.updateDateTime(), 60000);
         
-        // Sync data every 5 minutes if online
-        setInterval(() => this.syncDataToFirebase(), 300000);
+        // Sync data every 5 minutes if online (with debouncing)
+        setInterval(() => {
+            if (this.isOnline && this.db && !this.isSyncing) {
+                this.syncDataToFirebase();
+            }
+        }, 300000);
         
         // Hide loading screen
         this.hideLoading();
@@ -79,7 +95,7 @@ class AttendanceScanner {
         
         // Settings actions
         document.getElementById('export-all-data').addEventListener('click', () => this.exportAllData());
-        document.getElementById('sync-to-cloud').addEventListener('click', () => this.syncDataToFirebase());
+        document.getElementById('sync-to-cloud').addEventListener('click', () => this.syncDataToFirebase('manual'));
         document.getElementById('download-cloud-data').addEventListener('click', () => this.downloadCloudData());
         document.getElementById('clear-all-data').addEventListener('click', () => this.clearAllData());
         
@@ -888,9 +904,8 @@ class AttendanceScanner {
         try {
             localStorage.setItem('attendanceData', JSON.stringify(this.attendanceData));
             
-            // Trigger cloud sync if online
-            if (this.isOnline && this.db) {
-                // Debounce sync to avoid excessive calls
+            // Trigger cloud sync if online (with debouncing to avoid excessive calls)
+            if (this.isOnline && this.db && !this.isSyncing) {
                 clearTimeout(this.syncTimeout);
                 this.syncTimeout = setTimeout(() => {
                     this.syncDataToFirebase();
@@ -933,12 +948,23 @@ class AttendanceScanner {
             const saved = localStorage.getItem('appSettings');
             if (saved) {
                 const settings = JSON.parse(saved);
-                document.getElementById('teacher-name').value = settings.teacherName || '';
-                document.getElementById('class-subject').value = settings.classSubject || '';
-                const schoolNameElement = document.getElementById('school-name');
-                if (schoolNameElement) {
-                    schoolNameElement.value = settings.schoolName || '';
+                
+                // Ensure DOM elements exist before setting values
+                const teacherNameEl = document.getElementById('teacher-name');
+                const classSubjectEl = document.getElementById('class-subject');
+                const schoolNameEl = document.getElementById('school-name');
+                
+                if (teacherNameEl) {
+                    teacherNameEl.value = settings.teacherName || '';
                 }
+                if (classSubjectEl) {
+                    classSubjectEl.value = settings.classSubject || '';
+                }
+                if (schoolNameEl) {
+                    schoolNameEl.value = settings.schoolName || '';
+                }
+                
+                console.log('Settings loaded:', settings);
             }
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -946,11 +972,38 @@ class AttendanceScanner {
     }
 
     getSettings() {
-        return {
-            teacherName: document.getElementById('teacher-name').value,
-            classSubject: document.getElementById('class-subject').value,
-            schoolName: document.getElementById('school-name')?.value || ''
+        // Try to get from DOM elements first
+        const teacherNameEl = document.getElementById('teacher-name');
+        const classSubjectEl = document.getElementById('class-subject');
+        const schoolNameEl = document.getElementById('school-name');
+        
+        let settings = {
+            teacherName: '',
+            classSubject: '',
+            schoolName: ''
         };
+        
+        // Get values from DOM if elements exist
+        if (teacherNameEl) settings.teacherName = teacherNameEl.value || '';
+        if (classSubjectEl) settings.classSubject = classSubjectEl.value || '';
+        if (schoolNameEl) settings.schoolName = schoolNameEl.value || '';
+        
+        // If DOM elements don't exist or are empty, try localStorage as backup
+        if (!settings.teacherName || !settings.schoolName) {
+            try {
+                const saved = localStorage.getItem('appSettings');
+                if (saved) {
+                    const savedSettings = JSON.parse(saved);
+                    settings.teacherName = settings.teacherName || savedSettings.teacherName || '';
+                    settings.classSubject = settings.classSubject || savedSettings.classSubject || '';
+                    settings.schoolName = settings.schoolName || savedSettings.schoolName || '';
+                }
+            } catch (error) {
+                console.error('Error loading settings from localStorage:', error);
+            }
+        }
+        
+        return settings;
     }
 
     showToast(message, type = 'info') {
@@ -1281,12 +1334,13 @@ class AttendanceScanner {
             if (typeof firebase !== 'undefined') {
                 // Use demo config by default - users should replace with their own
                 const defaultConfig = {
-                    apiKey: "demo-api-key",
-                    authDomain: "rural-attendance-demo.firebaseapp.com",
-                    projectId: "rural-attendance-demo",
-                    storageBucket: "rural-attendance-demo.appspot.com",
-                    messagingSenderId: "123456789",
-                    appId: "demo-app-id"
+                    apiKey: "AIzaSyCcn9HfE4RGoyNzR6pVJ9Lihg2jRXrRup8",
+                    authDomain: "gndu-attendance-system.firebaseapp.com",
+                    projectId: "gndu-attendance-system",
+                    storageBucket: "gndu-attendance-system.firebasestorage.app",
+                    messagingSenderId: "874240831454",
+                    appId: "1:874240831454:web:aaaa1909d87d9a77e0f74f",
+                    measurementId: "G-7TNPBZ3ZZN"
                 };
                 
                 // Initialize Firebase
@@ -1332,7 +1386,10 @@ class AttendanceScanner {
             this.isOnline = true;
             this.updateSyncStatus('online', 'Connected - Auto sync enabled');
             this.showToast('Internet connection restored', 'success');
-            this.syncDataToFirebase();
+            // Only sync if we're not already syncing
+            if (!this.isSyncing) {
+                this.syncDataToFirebase();
+            }
         });
         
         window.addEventListener('offline', () => {
@@ -1349,21 +1406,47 @@ class AttendanceScanner {
     }
 
     async syncDataToFirebase() {
+        // Debounce sync calls to prevent excessive notifications
+        const now = Date.now();
+        const minInterval = 5000; // Minimum 5 seconds between sync attempts
+        
+        if (this.isSyncing) {
+            console.log('Sync already in progress, skipping...');
+            return;
+        }
+        
+        if (now - this.lastSyncAttempt < minInterval) {
+            console.log('Sync called too frequently, debouncing...');
+            clearTimeout(this.syncDebounceTimeout);
+            this.syncDebounceTimeout = setTimeout(() => {
+                this.syncDataToFirebase();
+            }, minInterval - (now - this.lastSyncAttempt));
+            return;
+        }
+        
         if (!this.isOnline || !this.db) {
             this.updateSyncStatus('offline', 'Offline - Cannot sync to cloud');
             return;
         }
 
         try {
+            this.isSyncing = true;
+            this.lastSyncAttempt = now;
             this.updateSyncStatus('syncing', 'Syncing data to cloud...');
             
             const settings = this.getSettings();
             const deviceId = this.getDeviceId();
             
-            // Validate settings before sync
-            if (!settings.schoolName || !settings.teacherName) {
+            // Validate settings before sync - only check if we have meaningful data to sync
+            if (this.attendanceData.length > 0 && (!settings.schoolName || !settings.teacherName)) {
                 this.updateSyncStatus('error', 'Please configure school and teacher name in Settings');
                 this.showToast('Please set school and teacher name in Settings before syncing', 'error');
+                return;
+            }
+            
+            // If no attendance data, just skip sync silently
+            if (this.attendanceData.length === 0) {
+                console.log('No attendance data to sync');
                 return;
             }
             
@@ -1421,7 +1504,10 @@ class AttendanceScanner {
             if (syncedCount > 0) {
                 this.showToast(`Synced ${syncedCount} records to cloud`, 'success');
             } else {
-                this.showToast('All data already synced', 'info');
+                // Only show this message if manually triggered
+                if (arguments.length > 0 && arguments[0] === 'manual') {
+                    this.showToast('All data already synced', 'info');
+                }
             }
             
             console.log('Data synced to Firebase successfully');
@@ -1447,6 +1533,8 @@ class AttendanceScanner {
             const unsyncedData = this.attendanceData.filter(entry => !entry.synced);
             this.pendingSyncData = [...this.pendingSyncData, ...unsyncedData];
             this.savePendingSyncData();
+        } finally {
+            this.isSyncing = false;
         }
     }
 
@@ -1544,17 +1632,6 @@ class AttendanceScanner {
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Register service worker for offline functionality
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
-            .then(registration => {
-                console.log('SW registered:', registration);
-            })
-            .catch(error => {
-                console.log('SW registration failed:', error);
-            });
-    }
-
     // Initialize the attendance scanner
     window.attendanceScanner = new AttendanceScanner();
 });
