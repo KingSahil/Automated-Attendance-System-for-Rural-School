@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Dimensions, Alert } from 'react-native';
-import { Camera } from 'expo-camera';
+import { CameraView, Camera } from 'expo-camera';
 import { Button, Text, Card, IconButton } from 'react-native-paper';
 
 const { width } = Dimensions.get('window');
@@ -77,12 +77,12 @@ export default function QRScanner({ onScan, onClose, visible }) {
         />
       </View>
 
-      <Camera
+      <CameraView
         style={styles.scanner}
-        type={Camera.Constants.Type.back}
-        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barCodeScannerSettings={{
-          barCodeTypes: [Camera.Constants.BarCodeType.qr],
+        facing="back"
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr'],
         }}
       />
 
